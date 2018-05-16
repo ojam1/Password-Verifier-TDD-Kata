@@ -18,5 +18,11 @@ namespace PasswordVerifier.Test
         {
             Assert.AreEqual(_verifier.Verify(password), expected);
         }
+
+        [Test]
+        public void should_return_invalid_for_null_passwords()
+        {
+            Assert.AreEqual(_verifier.Verify(null), "Invalid");
+        }
     }
 }
