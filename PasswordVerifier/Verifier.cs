@@ -4,7 +4,9 @@
     {
         public string Verify(string password)
         {
-            return "";
+            if (password.Length > 8)
+                return "Valid";
+            return "Invalid";
         }
     }
 }
