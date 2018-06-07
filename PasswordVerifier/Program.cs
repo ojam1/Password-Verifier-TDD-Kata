@@ -1,13 +1,21 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace PasswordVerifier
 {
-    class Program
+    internal class Program
     {
-        static void Main(string[] args)
+        public static readonly IEnumerable<IRule> Rules = new IRule[]
+        {
+            new MoreThanEightCharacters(),
+            new ContainsAtLeastOneUppercaseCharacter(),
+            new ContainsAtLeastOneLowercaseCharacter(),
+            new ContainsAtLeastOneNumber()
+        };
+        private static void Main(string[] args)
         {
             Console.WriteLine("Please Enter a Password");
-            Console.WriteLine(new Verifier(null).Verify());
+            new Verifier(Rules, Console.ReadLine()).Verify();
         }
     }
 }

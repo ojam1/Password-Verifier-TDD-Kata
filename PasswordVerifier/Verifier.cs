@@ -1,126 +1,117 @@
 ﻿using System;
-using System.Runtime.Remoting.Messaging;
+using System.Collections.Generic;
+using System.Diagnostics.Contracts;
+using System.Linq;
 using System.Runtime.Serialization;
-using System.Runtime.Serialization.Formatters;
 
 namespace PasswordVerifier
 {
     public class Verifier
     {
-        private Password _password;
-        private int NumberOfPassedConditions { get; set; }
-        
-        public Verifier(string password)
-        {   
+        private readonly Dictionary<IRule, bool> _conditions;
+ 
+        public Verifier(IEnumerable<IRule> rules, string password)
+        {
             if (string.IsNullOrEmpty(password))
                 throw new IncorrectPassword("Password is null or empty");
 
-            _password = new Password(password);
-            NumberOfPassedConditions = 1;
+            _conditions = new Dictionary<IRule, bool>();
+            
+
+            foreach (var rule in rules)
+            {
+                _conditions.Add(rule, rule.ConditionMet(password));
+            }
         }
+
         public string Verify()
         {
-            if (_password.ActualPassword.Length < 8)
-                _password.IsLessThan8CharPassword = true;
-
-            NumberOfPassedConditions++;
-
-            foreach (var @char in _password.ActualPassword)
-            {
-                if (char.IsUpper(@char))
-                {
-                    _password.ContainAtLeast1UppercaseChar = true;
-                    NumberOfPassedConditions++;
-                }
-            }
-
-            if (NumberOfPassedConditions == 3)
-                return "Valid";
-
-            foreach (var @char in _password.ActualPassword)
-            {
-                if (char.IsLower(@char))
-                    _password.ContainsAtLeast1LowercaseChar = true;
-            }
-
-            foreach (var @char in _password.ActualPassword)
-            {
-                if (int.TryParse(@char.ToString(), out _))
-                    _password.ContainsAtLeast1Number = true;
-            }
-
-            if (AllConditionsMet())
-                return "Valid";
-
             ErrorMessage();
-            return "Invlaid";
+           return Validation();
         }
 
-        private bool AllConditionsMet()
+        private string Validation()
         {
-            return ConditionsThatShouldBeTrue() && ConditionsThatShouldBeFalse();
+            return ConditionChecker() == 4 ? "Valid" : "Invalid";
         }
 
-        private bool ConditionsThatShouldBeTrue()
+        private int ConditionChecker()
         {
-            return _password.ContainsAtLeast1LowercaseChar && _password.ContainAtLeast1UppercaseChar && _password.ContainsAtLeast1Number;
+            return _conditions.Values.Count(value => value.Equals(true));
         }
 
-        private bool ConditionsThatShouldBeFalse()
-        {
-            return !_password.IsLessThan8CharPassword;
-        }
         private void ErrorMessage()
         {
-            if (_password.IsLessThan8CharPassword)
-                throw new IncorrectPassword("Password should be at least 8 characters");
+            var key = _conditions.Where(failingRule => failingRule.Value == false)
+                .Select(failingRule => failingRule.Key).ToList();
 
-            if (!_password.ContainAtLeast1UppercaseChar)
-                throw new IncorrectPassword("Password should contain at least one uppercase character");
-
-            if (!_password.ContainsAtLeast1LowercaseChar)
-                throw new IncorrectPassword("Password should contain at least one lowercase character");
-
-            if (!_password.ContainsAtLeast1Number)
-                throw new IncorrectPassword("Password should contain at least one number");
+            if(key.Any())
+                throw new IncorrectPassword(key.First().ExceptionMessage);
         }
     }
 
-    public class Password
+    public class ContainsAtLeastOneUppercaseCharacter : IRule
     {
-        public string ActualPassword;
-        public bool IsLessThan8CharPassword;
-        public bool ContainsAtLeast1LowercaseChar;
-        public bool ContainAtLeast1UppercaseChar;
-        public bool ContainsAtLeast1Number;
+        public string ExceptionMessage { get; }
 
-        public Password(string password)
+        public ContainsAtLeastOneUppercaseCharacter()
         {
-            ActualPassword = password;
-            IsLessThan8CharPassword = false;
-            ContainsAtLeast1LowercaseChar = false;
-            ContainAtLeast1UppercaseChar = false;
-            ContainsAtLeast1Number = false;
+            ExceptionMessage = "Password should contain at least one uppercase character";
+        }
+
+        public bool ConditionMet(string password)
+        {
+            return password.Any(char.IsUpper);
         }
     }
 
-    [Serializable]
-    public class IncorrectPassword : Exception
+    public class ContainsAtLeastOneLowercaseCharacter : IRule
     {
-        public IncorrectPassword()
+        public string ExceptionMessage { get; }
+
+        public ContainsAtLeastOneLowercaseCharacter()
         {
+            ExceptionMessage = "Password should contain at least one lowercase character";
         }
 
-        public IncorrectPassword(string message) : base(message)
+        public bool ConditionMet(string password)
         {
+            return password.Any(char.IsLower);
+        }
+    }
+
+    public class ContainsAtLeastOneNumber : IRule
+    {
+        public string ExceptionMessage { get; }
+
+        public ContainsAtLeastOneNumber()
+        {
+            ExceptionMessage = "Password should contain at least one number";
         }
 
-        public IncorrectPassword(string message, Exception innerException) : base(message, innerException)
+        public bool ConditionMet(string password)
         {
+            return password.Any(char.IsNumber);
+        }
+    }
+    public class MoreThanEightCharacters : IRule
+    {
+        public string ExceptionMessage { get; }
+
+        public MoreThanEightCharacters()
+        {
+            ExceptionMessage = "Password should be at least 8 characters";
         }
 
-        protected IncorrectPassword(SerializationInfo info, StreamingContext context) : base(info, context)
+        public bool ConditionMet(string password)
         {
+            return password.Length > 8;
         }
+    }
+
+    public interface IRule
+    {
+        string ExceptionMessage { get; }
+        bool ConditionMet(string conditionToTest);
     }
 }
